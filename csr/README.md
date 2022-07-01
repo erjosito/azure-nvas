@@ -1,6 +1,6 @@
 # Deploying Cisco CSR in Azure with CLI
 
-This document includes information about how to deploy a basic CSR configuration to Azure, as well as configuration snippets for BGP, IPSec and some useful troubleshooting commands.
+This document includes information about how to deploy a basic CSR configuration to Azure, as well as configuration snippets for BGP, IPSec and some useful troubleshooting commands. Note that all commands follow Linux shell syntax, so if you are running in Windows you might want to try them out in WSL (Windows Subsystem for Linux).
 
 ## Basic deployment
 

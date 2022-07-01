@@ -1,6 +1,6 @@
 # Deploying an Ubuntu-based NVA in Azure with CLI
 
-This document shows how to deploy an Ubuntu-based NVA to Azure. It include sections on basic deployment, BGP configuration with BIRD, IPsec configuration with StrongSwan and SNAT configuration with iptables.
+This document shows how to deploy an Ubuntu-based NVA to Azure. It include sections on basic deployment, BGP configuration with BIRD, IPsec configuration with StrongSwan and SNAT configuration with iptables. Note that all commands follow Linux shell syntax, so if you are running in Windows you might want to try them out in WSL (Windows Subsystem for Linux).
 
 ## Basic deployment
 

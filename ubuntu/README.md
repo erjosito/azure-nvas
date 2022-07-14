@@ -44,8 +44,8 @@ cat <<EOF > $linuxnva_cloudinit_file
 runcmd:
   - apt update && apt install -y bird strongswan
   - sysctl -w net.ipv4.ip_forward=1
-  - sysctl -w net.ipv4.conf.all.accept_redirects = 0 
-  - sysctl -w net.ipv4.conf.all.send_redirects = 0
+  - sysctl -w net.ipv4.conf.all.accept_redirects=0 
+  - sysctl -w net.ipv4.conf.all.send_redirects=0
 EOF
 # VM for NVA
 echo "Creating VM $nva_name..."

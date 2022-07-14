@@ -30,14 +30,14 @@ function first_ip(){
 echo "Creating RG and VNet..."
 az group create -n $rg -l $location -o none
 az network vnet create -n $vnet_name -g $rg --address-prefixes $vnet_prefix --subnet-name $nva_subnet_name --subnet-prefixes $nva_subnet_prefix -o none
-# NSG for onprem NVA
+# NSG for NVA
 echo "Creating NSG ${nva_name}-nsg..."
 az network nsg create -n "${nva_name}-nsg" -g $rg -o none
 az network nsg rule create -n SSH --nsg-name "${nva_name}-nsg" -g $rg --priority 1000 --destination-port-ranges 22 --access Allow --protocol Tcp -o none
 az network nsg rule create -n IKE --nsg-name "${nva_name}-nsg" -g $rg --priority 1010 --destination-port-ranges 4500 --access Allow --protocol Udp -o none
 az network nsg rule create -n IPsec --nsg-name "${nva_name}-nsg" -g $rg --priority 1020 --destination-port-ranges 500 --access Allow --protocol Udp -o none
 az network nsg rule create -n ICMP --nsg-name "${nva_name}-nsg" -g $rg --priority 1030 --destination-port-ranges '*' --access Allow --protocol Icmp -o none
-# Cloudinit file for onprem NVA
+# Cloudinit file for NVA
 linuxnva_cloudinit_file=/tmp/linuxnva_cloudinit.txt
 cat <<EOF > $linuxnva_cloudinit_file
 #cloud-config
@@ -47,7 +47,7 @@ runcmd:
   - sysctl -w net.ipv4.conf.all.accept_redirects = 0 
   - sysctl -w net.ipv4.conf.all.send_redirects = 0
 EOF
-# VM for onprem NVA
+# VM for NVA
 echo "Creating VM $nva_name..."
 az vm create -n $nva_name -g $rg -l $location --image ubuntuLTS --generate-ssh-keys \
     --public-ip-address $nva_pip_name --public-ip-sku Standard --vnet-name $vnet_name --size $nva_vm_size --subnet $nva_subnet_name \
@@ -114,8 +114,6 @@ protocol bgp rs1 {
 EOF
 username=$(whoami)
 scp -P 1022 $bird_config_file "${nva_lb_ext_pip_ip}:/home/${username}/bird.conf"
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_lb_ext_pip_ip "sudo touch $mrt_file"
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_lb_ext_pip_ip "sudo chmod 666 $mrt_file"
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_lb_ext_pip_ip "sudo mv /home/${username}/bird.conf /etc/bird/bird.conf"
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_lb_ext_pip_ip "sudo systemctl restart bird"
 ```
@@ -254,7 +252,7 @@ protocol static {
       import all;
       # Test route
       route 2.2.2.2/32 via $nva_default_gw;
-      route $onprem_vnet_prefix via $nva_default_gw;
+      route $vnet_prefix via $nva_default_gw;
 }
 protocol bgp vpngw0 {
       description "VPN Gateway instance 0";

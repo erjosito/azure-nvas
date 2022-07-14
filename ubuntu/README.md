@@ -172,7 +172,7 @@ ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ip route a
 
 ```bash
 # IPsec config files
-psk_file=/tmp/ipsec.secrets
+vpn_psk_file=/tmp/ipsec.secrets
 cat <<EOF > $vpn_psk_file
 $nva_pip_ip  $vpngw_gw0_pip : PSK "$vpn_psk"
 $nva_pip_ip  $vpngw_gw1_pip : PSK "$vpn_psk"

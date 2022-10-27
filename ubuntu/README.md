@@ -170,6 +170,8 @@ ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ip route a
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ip route add ${myip}/32 via $nva_default_gw" # To not lose SSH connectivity
 ```
 
+The files `/etc/ipsec.secrets` and `/etc/ipsec.conf` are required to configure the IPsec tunnel. Note that compression is disabled in `ipsec.conf`, which is not compatible with VTI-based IPsec tunnels in StrongSwan:
+
 ```bash
 # IPsec config files
 vpn_psk_file=/tmp/ipsec.secrets
@@ -193,7 +195,7 @@ conn vng0
   ikelifetime=28800s
   keylife=3600s
   keyingtries=3
-  compress=yes
+  compress=no
   auto=start
   ike=aes256-sha1-modp1024
   esp=aes256-sha1

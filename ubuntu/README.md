@@ -295,13 +295,46 @@ ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva1_pip "sudo iptables -t 
 
 To disable SNAT you just need to use the `-D` iptables command:
 
-## Diagnostics
+## Diagnostics and troubleshooting
+
+Interfaces and routes:
+
+```bash
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sysctl -w net.ipv4.ip_forward" # Check status of IP forwarding at the OS level
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "ip a"                          # Interface status
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "ip route"                      # IP routes
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "ifconfig vti0"                 # VTI0 counters
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "ip -s tunnel show"             # Tunnel information
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "cat /proc/net/xfrm_stat"       # Advanced counters
+```
+
+Resetting VTI0:
+
+```bash
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "ip tunnel del vti0"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo ip tunnel add vti0 local 192.168.0.2 remote 40.122.240.210 mode vti key 12"
+```
+
+iptables:
+
+```bash
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo iptables -L"              # Show iptables rules
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo iptables -t nat -L"       # Show iptables NAT rules
+```
+
+For IPsec:
 
 ```bash
 # Diagnostic commands for Ubuntu-based NVA
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sysctl -w net.ipv4.ip_forward" # Check status of IP forwarding at the OS level
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo iptables -L"              # Show iptables rules
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo iptables -t nat -L"       # Show iptables NAT rules
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "systemctl status ipsec"        # Check status of StrongSwan daemon
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ipsec status"                     # IPsec status
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ipsec statusall"                  # IPsec status
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo ip xfrm state"            # Transform state
+```
+
+For BGP
+
+```bash
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "systemctl status bird"         # Check status of BIRD daemon
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show status"                # BIRD status
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show protocols"             # BGP neighbors
@@ -310,6 +343,4 @@ ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show route"                 # Learned routes
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show route protocol rs0"    # Learned routes from a specific neighbor
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show route export rs0"      # Advertised routes
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "systemctl status ipsec"        # Check status of StrongSwan daemon
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ipsec status"                     # IPsec status
 ```

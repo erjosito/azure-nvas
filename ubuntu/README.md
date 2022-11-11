@@ -226,6 +226,7 @@ ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo systemctl 
 
 ```bash
 # Configure BGP with Bird (NVA to VPNGW)
+nva_asn=65001
 bird_config_file=/tmp/bird.conf
 cat <<EOF > $bird_config_file
 log syslog all;
@@ -260,7 +261,7 @@ protocol bgp vpngw0 {
       description "VPN Gateway instance 0";
       multihop;
       local $nva_private_ip as $nva_asn;
-      neighbor $vpngw_private_ip_0 as $vpngw_asn;
+      neighbor $vpngw_gw0_bgp_ip as $vpngw_asn;
           import filter {accept;};
           export filter {accept;};
 }
@@ -268,7 +269,7 @@ protocol bgp vpngw1 {
       description "VPN Gateway instance 1";
       multihop;
       local $nva_private_ip as $nva_asn;
-      neighbor $vpngw_private_ip_1 as $vpngw_asn;
+      neighbor $vpngw_gw1_bgp_ip as $vpngw_asn;
           import filter {accept;};
           export filter {accept;};
 }

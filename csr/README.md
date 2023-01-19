@@ -168,7 +168,7 @@ sed -i "s|\*\*GW0_Private_IP\*\*|${vpngw_gw0_bgp_ip}|g" $config_file_local
 sed -i "s|\*\*GW1_Private_IP\*\*|${vpngw_gw1_bgp_ip}|g" $config_file_local
 sed -i "s|\*\*GW0_Public_IP\*\*|${vpngw_gw0_pip}|g" $config_file_local
 sed -i "s|\*\*GW1_Public_IP\*\*|${vpngw_gw1_pip}|g" $config_file_local
-sed -i "s|\*\*BGP_ID\*\*|${branch1_asn}|g" $config_file_local
+sed -i "s|\*\*BGP_ID\*\*|${nva_asn}|g" $config_file_local
 ssh -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip <<EOF
 config t
     file prompt quiet

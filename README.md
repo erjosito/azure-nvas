@@ -5,7 +5,7 @@ This repository contains some CLI recipes for easy deployment of NVAs in Azure f
 - [Ubuntu](./ubuntu)
 - [Cisco CSR](./csr)*
 
-> **_NOTE:_** the Cisco CSR has been renamed as Cisco Catalist 8000v
+> **_NOTE:_** the Cisco CSR has been renamed as Cisco Catalyst 8000v
 
 Other appliances you might want to check:
 

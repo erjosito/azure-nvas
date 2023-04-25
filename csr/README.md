@@ -160,6 +160,8 @@ echo "Extracted info for vpn gateway: Gateway0 $vpngw_gw0_pip, $vpngw_gw0_bgp_ip
 Now you can generate the CSR config and push it to Azure:
 
 ```bash
+# Variables
+nva_asn=65501
 # Create CSR config in a local file and copy it to the NVA
 csr_config_url="https://raw.githubusercontent.com/erjosito/azure-nvas/master/csr/csr_config_2tunnels_tokenized.txt"
 config_file_csr='csr.cfg'

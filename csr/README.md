@@ -49,7 +49,7 @@ Now we can create a single-NIC CSR VM:
 ```bash
 # Create single-NIC CSR
 az network public-ip create -g $rg -n "${nva_pip_name}" --sku Standard --allocation-method Static
-az network nic create -n "${nva_name}-nic0" -g $rg --vnet-name $vnet_name --subnet $nva_subnet_name --public-ip-address "${nva_pip_name}-pip" --network-security-group "${nva_nsg_name}" --ip-forwarding
+az network nic create -n "${nva_name}-nic0" -g $rg --vnet-name $vnet_name --subnet $nva_subnet_name --public-ip-address "${nva_pip_name}" --network-security-group "${nva_nsg_name}" --ip-forwarding
 az vm image terms accept --urn ${publisher}:${offer}:${sku}:${version}
 az vm create -n $nva_name -g $rg -l $location --size $nva_vm_size \
     --image ${publisher}:${offer}:${sku}:${version} \
@@ -68,7 +68,7 @@ nva_subnet2_name=nvainternal
 nva_subnet2_prefix=192.168.1.0/24
 az network vnet subnet create -n $nva_subnet2_name --address-prefix $nva_subnet2_prefix --vnet-name $vnet_name -g $rg
 az network public-ip create -g $rg -n "${nva_pip_name}" --sku basic --allocation-method Static
-az network nic create -n "${nva_name}-nic0" -g $rg --vnet-name $vnet_name --subnet $nva_subnet1_name --network-security-group "$nva_nsg_name" --public-ip-address "${nva_name}-pip" --ip-forwarding
+az network nic create -n "${nva_name}-nic0" -g $rg --vnet-name $vnet_name --subnet $nva_subnet1_name --network-security-group "$nva_nsg_name" --public-ip-address "${nva_pip_name}" --ip-forwarding
 az network nic create -n "${nva_name}-nic1" -g $rg --vnet-name $vnet_name --subnet $hub_csrint_subnet_name --network-security-group "$nva_nsg_name" --ip-forwarding
 az vm create -n $nva_name -g $rg -l $location \
     --image ${publisher}:${offer}:${sku}:${version} --size $nva_vm_size \

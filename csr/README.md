@@ -56,7 +56,7 @@ az vm image terms accept --urn ${publisher}:${offer}:${sku}:${version}
 az vm create -n $nva_name -g $rg -l $location --size $nva_vm_size \
     --image ${publisher}:${offer}:${sku}:${version} \
     --admin-username "$nva_username" --admin-password $nva_password --authentication-type all --generate-ssh-keys \
-    --nics "${spoke1_csr_name}-nic0"
+    --nics "${nva_name}-nic0"
 nva_private_ip=$(az network nic show -n "${nva_name}-nic0" -g $rg --query 'ipConfigurations[0].privateIpAddress' -o tsv) && echo $nva_private_ip
 nva_pip_ip=$(az network public-ip show -n $nva_pip_name -g $rg --query ipAddress -o tsv) && echo $nva_pip_ip
 nva_default_gw=$(first_ip $nva_subnet_prefix)

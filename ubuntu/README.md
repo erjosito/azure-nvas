@@ -49,7 +49,7 @@ runcmd:
 EOF
 # VM for NVA
 echo "Creating VM $nva_name..."
-az vm create -n $nva_name -g $rg -l $location --image ubuntuLTS --generate-ssh-keys \
+az vm create -n $nva_name -g $rg -l $location --image Ubuntu2204 --generate-ssh-keys \
     --public-ip-address $nva_pip_name --public-ip-sku Standard --vnet-name $vnet_name --size $nva_vm_size --subnet $nva_subnet_name \
     --custom-data $linuxnva_cloudinit_file --nsg "${nva_name}-nsg" -o none
 nva_nic_id=$(az vm show -n $nva_name -g "$rg" --query 'networkProfile.networkInterfaces[0].id' -o tsv)

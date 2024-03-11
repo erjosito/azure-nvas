@@ -56,7 +56,7 @@ nva_nic_id=$(az vm show -n $nva_name -g "$rg" --query 'networkProfile.networkInt
 az network nic update --ids $nva_nic_id --ip-forwarding -o none
 echo "Getting information about the created VM..."
 nva_pip_ip=$(az network public-ip show -n $nva_pip_name -g $rg --query ipAddress -o tsv) && echo $nva_pip_ip
-nva_private_ip=$(az network nic show --ids $nva_nic_id --query 'ipConfigurations[0].privateIpAddress' -o tsv) && echo $nva_private_ip
+nva_private_ip=$(az network nic show --ids $nva_nic_id --query 'ipConfigurations[0].privateIPAddress' -o tsv) && echo $nva_private_ip
 nva_default_gw=$(first_ip "$nva_subnet_prefix") && echo $nva_default_gw
 ```
 

@@ -118,7 +118,7 @@ ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_lb_ext_pip_ip "
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_lb_ext_pip_ip "sudo systemctl restart bird"
 ```
 
-## IPsec configuration
+## IPsec configuration with VTI
 
 First you need to extract information from the VPN gateways in Azure. For example, if you are using Virtual WAN:
 
@@ -261,7 +261,7 @@ protocol bgp vpngw0 {
       description "VPN Gateway instance 0";
       multihop;
       local $nva_private_ip as $nva_asn;
-      neighbor $vpngw_gw0_bgp_ip as $vpngw_asn;
+      neighbor $vpngw_gw0_bgp_ip as $vpngw_bgp_asn;
           import filter {accept;};
           export filter {accept;};
 }
@@ -269,7 +269,7 @@ protocol bgp vpngw1 {
       description "VPN Gateway instance 1";
       multihop;
       local $nva_private_ip as $nva_asn;
-      neighbor $vpngw_gw1_bgp_ip as $vpngw_asn;
+      neighbor $vpngw_gw1_bgp_ip as $vpngw_bgp_asn;
           import filter {accept;};
           export filter {accept;};
 }
@@ -279,6 +279,202 @@ scp $bird_config_file "${nva_pip_ip}:/home/${username}/bird.conf"
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo mv /home/${username}/bird.conf /etc/bird/bird.conf"
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo systemctl restart bird"
 ```
+
+## IPsec configuration with XFRM interfaces
+
+This guide is following the docs in [here](https://docs.strongswan.org/docs/5.9/features/routeBasedVpn.html#_xfrm_interface_management). XFRM are a new type of interfaces that replace VTI. As before, first you need to extract information from the VPN gateways in Azure. For example, if you are using Virtual WAN:
+
+```bash
+# Get VPN GW information from Virtual WAN
+vwan_vpngw_name=name_of_your_vwan_vpn_gateway
+vpn_psk=your_ipsec_preshared_key
+vpngw_config=$(az network vpn-gateway show -n $vwan_vpngw_name -g $rg)
+vpngw_gw0_pip=$(echo $vpngw_config | jq -r '.bgpSettings.bgpPeeringAddresses[0].tunnelIpAddresses[0]')
+vpngw_gw1_pip=$(echo $vpngw_config | jq -r '.bgpSettings.bgpPeeringAddresses[1].tunnelIpAddresses[0]')
+vpngw_gw0_bgp_ip=$(echo $vpngw_config | jq -r '.bgpSettings.bgpPeeringAddresses[0].defaultBgpIpAddresses[0]')
+vpngw_gw1_bgp_ip=$(echo $vpngw_config | jq -r '.bgpSettings.bgpPeeringAddresses[1].defaultBgpIpAddresses[0]')
+vpngw_bgp_asn=$(echo $vpngw_config | jq -r '.bgpSettings.asn')  # This is today always 65515
+echo "Extracted info for hub vpn gateway: Gateway0 $vpngw_gw0_pip, $vpngw_gw0_bgp_ip. Gateway1 $vpngw_gw1_pip, $vpngw_gw1_bgp_ip. ASN $vpngw_bgp_asn"
+```
+
+Alternatively, if your VPN GW is non-VWAN:
+
+```bash
+# Get VPN GW information from standalone VPN Gateway (active/active)
+vpngw_name=name_of_your_vwan_vpn_gateway
+vpn_psk=your_ipsec_preshared_key
+vpngw_bgp_asn=$(az network vnet-gateway show -n $vpngw_name -g $rg --query 'bgpSettings.asn' -o tsv) && echo $vpnwg_bgp_asn
+vpngw_gw0_pip=$(az network vnet-gateway show -n $vpngw_name -g $rg --query 'bgpSettings.bgpPeeringAddresses[0].tunnelIpAddresses[0]' -o tsv) && echo $vpngw_gw0_pip
+vpngw_gw0_bgp_ip=$(az network vnet-gateway show -n $vpngw_name -g $rg --query 'bgpSettings.bgpPeeringAddresses[0].defaultBgpIpAddresses[0]' -o tsv) && echo $vpngw_gw0_bgp_ip
+vpngw_gw1_pip=$(az network vnet-gateway show -n $vpngw_name -g $rg --query 'bgpSettings.bgpPeeringAddresses[1].tunnelIpAddresses[0]' -o tsv) && echo $vpngw_gw1_pip
+vpngw_gw1_bgp_ip=$(az network vnet-gateway show -n $vpngw_name -g $rg --query 'bgpSettings.bgpPeeringAddresses[1].defaultBgpIpAddresses[0]' -o tsv) && echo $vpngw_gw1_bgp_ip
+echo "Extracted info for vpn gateway: Gateway0 $vpngw_gw0_pip, $vpngw_gw0_bgp_ip. Gateway1 $vpngw_gw1_pip, $vpngw_gw0_bgp_ip. ASN $vpngw_bgp_asn"
+```
+Make sure you have the right variables from previous steps and that BIRD and StrongSwan are installed:
+
+```
+nva_name=<your vm's name>
+# Function to get the first IP (default gateway) of a subnet. Example: first_ip 192.168.0.64/27
+function first_ip(){
+    subnet=$1
+    IP=$(echo $subnet | cut -d/ -f 1)
+    IP_HEX=$(printf '%.2X%.2X%.2X%.2X\n' `echo $IP | sed -e 's/\./ /g'`)
+    NEXT_IP_HEX=$(printf %.8X `echo $(( 0x$IP_HEX + 1 ))`)
+    NEXT_IP=$(printf '%d.%d.%d.%d\n' `echo $NEXT_IP_HEX | sed -r 's/(..)/0x\1 /g'`)
+    echo "$NEXT_IP"
+}
+# VM variables
+echo "Getting information about the created VM..."
+nva_nic_id=$(az vm show -n $nva_name -g "$rg" --query 'networkProfile.networkInterfaces[0].id' -o tsv)
+nva_pip_id=$(az network nic show --ids $nva_nic_id --query 'ipConfigurations[0].publicIPAddress.id' -o tsv)
+nva_pip_ip=$(az network public-ip show --ids $nva_pip_id --query ipAddress -o tsv) && echo $nva_pip_ip
+nva_private_ip=$(az network nic show --ids $nva_nic_id --query 'ipConfigurations[0].privateIPAddress' -o tsv) && echo $nva_private_ip
+nva_subnet_id=$(az network nic show --ids $nva_nic_id --query 'ipConfigurations[0].subnet.id' -o tsv)
+nva_subnet_prefix=$(az network vnet subnet show --ids $nva_subnet_id --query addressPrefix -o tsv)
+nva_default_gw=$(first_ip "$nva_subnet_prefix") && echo $nva_default_gw
+# This step verifies that you have SSH connectivity, and that you have BIRD and StrongSwan installed
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo apt update && sudo apt install -y bird strongswan"
+```
+
+Instead of the VTI interfaces, XRFM interfaces are created. No marks or endpoints are required, but an interface ID is assigned (`41` and `42` in this example):
+
+```bash
+# XRFM interfaces and static routes
+# Note these changes are not reboot-persistent!!!
+echo "Configuring VPN between Azure:${vpngw_gw0_pip}/${vpngw_gw0_bgp_ip} and B:${nva_pip_ip}/${nva_private_ip}..."
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ip link add ipsec0 type xfrm dev eth0 if_id 41"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ip link set ipsec0 up"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ip route add ${vpngw_gw0_bgp_ip}/32 dev ipsec0"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ip link add ipsec1 type xfrm dev eth0 if_id 42"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ip link set ipsec1 up"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ip route add ${vpngw_gw1_bgp_ip}/32 dev ipsec1"
+# Disabling route installation is not required any more
+# ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo sed -i 's/# install_routes = yes/install_routes = no/' /etc/strongswan.d/charon.conf"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ip route add ${vpngw_gw0_pip}/32 via $nva_default_gw"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ip route add ${vpngw_gw1_pip}/32 via $nva_default_gw"
+myip=$(curl -s4 ifconfig.co) && echo "Installing route for $myip..."
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ip route add ${myip}/32 via $nva_default_gw" # To not lose SSH connectivity
+# However, we need to install throw routes in route table 220
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ip route add throw ${vpngw_gw0_pip}/32 table 220"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ip route add throw ${vpngw_gw1_pip}/32 table 220"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ip route add throw ${myip}/32 table 220"
+# Check interfaces and routes
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "ip a & ip route"
+```
+
+The files `/etc/ipsec.secrets` and `/etc/ipsec.conf` are required to configure the IPsec tunnel. Note that compression is disabled in `ipsec.conf`, which is not compatible with VTI-based IPsec tunnels in StrongSwan:
+
+```bash
+# IPsec config files
+vpn_psk_file=/tmp/ipsec.secrets
+cat <<EOF > $vpn_psk_file
+$nva_pip_ip  $vpngw_gw0_pip : PSK "$vpn_psk"
+$nva_pip_ip  $vpngw_gw1_pip : PSK "$vpn_psk"
+EOF
+ipsec_file=/tmp/ipsec.conf
+cat <<EOF > $ipsec_file
+config setup
+        charondebug="all"
+        uniqueids=yes
+        strictcrlpolicy=no
+conn vng0
+  authby=secret
+  leftid=$nva_pip_ip
+  leftsubnet=0.0.0.0/0
+  right= $vpngw_gw0_pip
+  rightsubnet=0.0.0.0/0
+  keyexchange=ikev2
+  ikelifetime=28800s
+  keylife=3600s
+  keyingtries=3
+  compress=no
+  auto=start
+  ike=aes256-sha1-modp1024
+  esp=aes256-sha1
+  if_id_in=41
+  if_id_out=41
+conn vng1
+  authby=secret
+  leftid=$nva_pip_ip
+  leftsubnet=0.0.0.0/0
+  right= $vpngw_gw1_pip
+  rightsubnet=0.0.0.0/0
+  keyexchange=ikev2
+  ikelifetime=28800s
+  keylife=3600s
+  keyingtries=3
+  compress=yes
+  auto=start
+  ike=aes256-sha1-modp1024
+  esp=aes256-sha1
+  if_id_in=42
+  if_id_out=42
+EOF
+# Copy files to NVA and restart ipsec daemon
+username=$(whoami)
+scp $vpn_psk_file $nva_pip_ip:/home/$username/ipsec.secrets
+scp $ipsec_file $nva_pip_ip:/home/$username/ipsec.conf
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo mv ./ipsec.* /etc/"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo systemctl restart ipsec"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ipsec status"
+```
+
+```bash
+# Configure BGP with Bird (NVA to VPNGW)
+nva_asn=65001
+bird_config_file=/tmp/bird.conf
+cat <<EOF > $bird_config_file
+log syslog all;
+router id $nva_private_ip;
+protocol device {
+        scan time 10;
+}
+protocol direct {
+      disabled;
+}
+protocol kernel {
+      preference 254;
+      learn;
+      merge paths on;
+      import filter {
+          if net ~ ${vpngw_gw0_bgp_ip}/32 then accept;
+          if net ~ ${vpngw_gw1_bgp_ip}/32 then accept;
+          else reject;
+      };
+      export filter {
+          if net ~ ${vpngw_gw0_bgp_ip}/32 then reject;
+          else accept;
+      };
+}
+protocol static {
+      import all;
+      # Test route
+      route 2.2.2.2/32 via $nva_default_gw;
+      route $vnet_prefix via $nva_default_gw;
+}
+protocol bgp vpngw0 {
+      description "VPN Gateway instance 0";
+      multihop;
+      local $nva_private_ip as $nva_asn;
+      neighbor $vpngw_gw0_bgp_ip as $vpngw_bgp_asn;
+          import filter {accept;};
+          export filter {accept;};
+}
+protocol bgp vpngw1 {
+      description "VPN Gateway instance 1";
+      multihop;
+      local $nva_private_ip as $nva_asn;
+      neighbor $vpngw_gw1_bgp_ip as $vpngw_bgp_asn;
+          import filter {accept;};
+          export filter {accept;};
+}
+EOF
+username=$(whoami)
+scp $bird_config_file "${nva_pip_ip}:/home/${username}/bird.conf"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo mv /home/${username}/bird.conf /etc/bird/bird.conf"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo systemctl restart bird"
+```
+
 
 ## Source NAT
 

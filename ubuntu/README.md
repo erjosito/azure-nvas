@@ -450,7 +450,7 @@ protocol static {
       import all;
       # Test route
       route 2.2.2.2/32 via $nva_default_gw;
-      route $vnet_prefix via $nva_default_gw;
+      route $nva_subnet_prefix via $nva_default_gw;
 }
 protocol bgp vpngw0 {
       description "VPN Gateway instance 0";

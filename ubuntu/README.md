@@ -345,6 +345,12 @@ sudo adduser consoleadmin
 sudo usermod -aG sudo consoleadmin
 ```
 
+You could enable boot diagnostics, now that you are at it:
+
+```bash
+az vm boot-diagnostics enable -n $nva_name -g $rg -o none
+```
+
 Instead of the VTI interfaces, XRFM interfaces are created. No marks or endpoints are required, but an interface ID is assigned (`41` and `42` in this example):
 
 ```bash

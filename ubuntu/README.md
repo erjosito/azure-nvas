@@ -37,7 +37,7 @@ az network nsg create -n "$nsg_name" -g $rg -l $location -o none
 az network nsg rule create -n SSH --nsg-name "$nsg_name" -g $rg --priority 1000 --destination-port-ranges 22 --access Allow --protocol Tcp -o none
 az network nsg rule create -n IKE --nsg-name "$nsg_name" -g $rg --priority 1010 --destination-port-ranges 4500 --access Allow --protocol Udp -o none
 az network nsg rule create -n IPsec --nsg-name "$nsg_name" -g $rg --priority 1020 --destination-port-ranges 500 --access Allow --protocol Udp -o none
-az network nsg rule create -n ESP --nsg-name "$nsg_name" -g $rg --priority 1040 --destination-port-ranges '*' --access Allow --protocol Esp -o none
+az network nsg rule create -n ESP --nsg-name "$nsg_name" -g $rg --priority 1030 --destination-port-ranges '*' --access Allow --protocol Esp -o none
 az network nsg rule create -n ICMP --nsg-name "$nsg_name" -g $rg --priority 1040 --destination-port-ranges '*' --access Allow --protocol Icmp -o none
 # Cloudinit file for NVA
 linuxnva_cloudinit_file=/tmp/linuxnva_cloudinit.txt

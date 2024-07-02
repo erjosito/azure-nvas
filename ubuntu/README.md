@@ -463,11 +463,11 @@ protocol kernel {
           else accept;
       };
 }
-protocol kernel {               # Secondary routing table
-        table auxtable;
-        kernel table 220;
-        export all;
-}
+# protocol kernel {               # Secondary routing table
+#         table auxtable;
+#         kernel table 220;
+#         export all;
+# }
 protocol static {
       import all;
       # Test route

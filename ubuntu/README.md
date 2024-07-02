@@ -338,6 +338,13 @@ nva_default_gw=$(first_ip "$nva_subnet_prefix") && echo $nva_default_gw
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo apt update && sudo apt install -y bird strongswan"
 ```
 
+First of all, you might want to create some new user with password, in case you need to access the VM over the console (some times I have lost connectivity to the VM):
+
+```bash
+sudo adduser consoleadmin
+sudo usermod -aG sudo consoleadmin
+```
+
 Instead of the VTI interfaces, XRFM interfaces are created. No marks or endpoints are required, but an interface ID is assigned (`41` and `42` in this example):
 
 ```bash

@@ -434,6 +434,8 @@ ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo systemctl 
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ipsec status"
 ```
 
+For the BGP part, StrongSwan on XFRM interfaces works on route table 220, not sure if the kernel protocol needs to be associated to that RT.
+
 ```bash
 # Configure BGP with Bird (NVA to VPNGW)
 nva_asn=65001
@@ -460,6 +462,11 @@ protocol kernel {
           if net ~ ${vpngw_gw0_bgp_ip}/32 then reject;
           else accept;
       };
+}
+protocol kernel {               # Secondary routing table
+        table auxtable;
+        kernel table 220;
+        export all;
 }
 protocol static {
       import all;

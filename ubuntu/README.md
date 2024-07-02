@@ -31,13 +31,14 @@ echo "Creating RG and VNet..."
 az group create -n $rg -l $location -o none
 az network vnet create -n $vnet_name -g $rg --address-prefixes $vnet_prefix --subnet-name $nva_subnet_name --subnet-prefixes $nva_subnet_prefix -l $location -o none
 # NSG for NVA
-echo "Creating NSG ${nva_name}-nsg..."
-az network nsg create -n "${nva_name}-nsg" -g $rg -l $location -o none
-az network nsg rule create -n SSH --nsg-name "${nva_name}-nsg" -g $rg --priority 1000 --destination-port-ranges 22 --access Allow --protocol Tcp -o none
-az network nsg rule create -n IKE --nsg-name "${nva_name}-nsg" -g $rg --priority 1010 --destination-port-ranges 4500 --access Allow --protocol Udp -o none
-az network nsg rule create -n IPsec --nsg-name "${nva_name}-nsg" -g $rg --priority 1020 --destination-port-ranges 500 --access Allow --protocol Udp -o none
-az network nsg rule create -n ESP --nsg-name "${nva_name}-nsg" -g $rg --priority 1040 --destination-port-ranges '*' --access Allow --protocol Esp -o none
-az network nsg rule create -n ICMP --nsg-name "${nva_name}-nsg" -g $rg --priority 1040 --destination-port-ranges '*' --access Allow --protocol Icmp -o none
+nsg_name="${nva_name}-nsg"
+echo "Creating NSG $nsg_name..."
+az network nsg create -n "$nsg_name" -g $rg -l $location -o none
+az network nsg rule create -n SSH --nsg-name "$nsg_name" -g $rg --priority 1000 --destination-port-ranges 22 --access Allow --protocol Tcp -o none
+az network nsg rule create -n IKE --nsg-name "$nsg_name" -g $rg --priority 1010 --destination-port-ranges 4500 --access Allow --protocol Udp -o none
+az network nsg rule create -n IPsec --nsg-name "$nsg_name" -g $rg --priority 1020 --destination-port-ranges 500 --access Allow --protocol Udp -o none
+az network nsg rule create -n ESP --nsg-name "$nsg_name" -g $rg --priority 1040 --destination-port-ranges '*' --access Allow --protocol Esp -o none
+az network nsg rule create -n ICMP --nsg-name "$nsg_name" -g $rg --priority 1040 --destination-port-ranges '*' --access Allow --protocol Icmp -o none
 # Cloudinit file for NVA
 linuxnva_cloudinit_file=/tmp/linuxnva_cloudinit.txt
 cat <<EOF > $linuxnva_cloudinit_file

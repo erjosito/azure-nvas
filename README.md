@@ -12,4 +12,4 @@ Other appliances you might want to check:
 
 - [OPNAzure](https://github.com/dmauser/opnazure/)
 - [VyOS](https://vyos.io/solutions/vyos-on-azure/)
-- [NetBird](https://docs.netbird.io/): Linux
+- [NetBird](https://docs.netbird.io/): Linux package for IPsec

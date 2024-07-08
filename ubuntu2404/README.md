@@ -44,7 +44,7 @@ linuxnva_cloudinit_file=/tmp/linuxnva_cloudinit.txt
 cat <<EOF > $linuxnva_cloudinit_file
 #cloud-config
 runcmd:
-  - apt update && apt install -y bird strongswan
+  - apt update && apt install -y bird strongswan strongswan-swanctl
   - sysctl -w net.ipv4.ip_forward=1
   - sysctl -w net.ipv4.conf.all.accept_redirects=0 
   - sysctl -w net.ipv4.conf.all.send_redirects=0
@@ -120,7 +120,7 @@ nva_subnet_id=$(az network nic show --ids $nva_nic_id --query 'ipConfigurations[
 nva_subnet_prefix=$(az network vnet subnet show --ids $nva_subnet_id --query addressPrefix -o tsv)
 nva_default_gw=$(first_ip "$nva_subnet_prefix") && echo $nva_default_gw
 # This step verifies that you have SSH connectivity, and that you have BIRD and StrongSwan installed
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo apt update && sudo apt install -y bird strongswan"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo apt update && sudo apt install -y bird strongswan strongswan-swanctl"
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo sysctl -w net.ipv4.ip_forward=1"
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo sysctl -w net.ipv4.conf.all.accept_redirects=0"
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo sysctl -w net.ipv4.conf.all.send_redirects=0"
@@ -171,75 +171,73 @@ ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "ip xfrm policy"
 The files `/etc/ipsec.secrets` and `/etc/ipsec.conf` are required to configure the IPsec tunnel. Note that compression is disabled in `ipsec.conf`, which is not compatible with VTI-based IPsec tunnels in StrongSwan:
 
 ```bash
-# IPsec config files
-# vpn_psk_file=/tmp/ipsec.secrets
-# cat <<EOF > $vpn_psk_file
-# $nva_pip_ip  $vpngw_gw0_pip : PSK "$vpn_psk"
-# $nva_pip_ip  $vpngw_gw1_pip : PSK "$vpn_psk"
-# EOF
+# StrongSwan config file
 swanctl_file=/tmp/swanctl.conf
 cat <<EOF > $swanctl_file
 connections {
    vng0 {
+        local_addrs  = $nva_private_ip
         remote_addrs = $vpngw_gw0_pip
         version = 2
         proposals = aes256-sha1-modp1024,aes192-sha256-modp3072,default
         keyingtries = 0
-
-        local-1 {
+        encap = yes
+        local {
             auth = psk
             id = $nva_pip_ip
         }
-        remote-1 {
-            # id field here is inferred from the remote address
+        remote {
             auth = psk
+            id = $vpngw_gw0_pip
+            revocation = relaxed
         }
         children {
-            site-1-static-ip {
+            s2s0 {
                 local_ts = 0.0.0.0/0
                 remote_ts = 0.0.0.0/0
                 esp_proposals = aes256-sha1,default
                 dpd_action = restart
                 start_action = trap
+                rekey_time = 3600
             }
         }
-        if_id_in=41
-        if_id_out=41
+        if_id_in = 41
+        if_id_out = 41
    }
    vng1 {
+        local_addrs  = $nva_private_ip
         remote_addrs = $vpngw_gw1_pip
         version = 2
         proposals = aes256-sha1-modp1024,aes192-sha256-modp3072,default
         keyingtries = 0
-
-        local-1 {
+        encap = yes
+        local {
             auth = psk
             id = $nva_pip_ip
         }
-        remote-1 {
-            # id field here is inferred from the remote address
+        remote {
             auth = psk
+            id = $vpngw_gw1_pip
+            revocation = relaxed
         }
         children {
-            site-1-static-ip {
+            s2s1 {
                 local_ts = 0.0.0.0/0
                 remote_ts = 0.0.0.0/0
                 esp_proposals = aes256-sha1,default
                 dpd_action = restart
                 start_action = trap
+                rekey_time = 3600
             }
         }
-        if_id_in=42
-        if_id_out=42
+        if_id_in = 42
+        if_id_out = 42
    }
 }
 secrets {
-   # PSK secrets
-   vng0 {
-        id-1 = $vpngw_gw0_pip
-        secret = "$vpn_psk" 
-   }
-   vng1 {
+   # PSK secret
+   ike-1 {
+        id-0 = $vpngw_gw0_pip
         id-1 = $vpngw_gw1_pip
         secret = "$vpn_psk" 
    }
@@ -247,11 +245,10 @@ secrets {
 EOF
 # Copy files to NVA and restart ipsec daemon
 username=$(whoami)
-# scp $vpn_psk_file $nva_pip_ip:/home/$username/ipsec.secrets
 scp $swanctl_file $nva_pip_ip:/home/$username/swanctl.conf
-# ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo mv ./ipsec.secrets /etc/"
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo mv ./swanctl.conf /etc/"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo mv ./swanctl.conf /etc/swanctl/"
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo systemctl restart ipsec"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo swanctl --load-all"
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ipsec status"
 ```
 
@@ -353,6 +350,11 @@ ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "systemc
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ipsec status"                     # IPsec status
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ipsec statusall"                  # IPsec status
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo ip xfrm state"            # Transform state
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo ip xfrm policy"           # Transform policy
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo swanctl --initiate --ike vng0 --child s2s0"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo swanctl --initiate --ike vng1 --child s2s1"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo swanctl --list-conns"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo swanctl --list-sas"
 ```
 
 For BGP
@@ -361,9 +363,9 @@ For BGP
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "systemctl status bird"         # Check status of BIRD daemon
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show status"                # BIRD status
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show protocols"             # BGP neighbors
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show protocols rs0"         # Information about a specific BGP neighbor
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show protocol all rs0"      # Additional information about a specific BGP neighbor
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show protocols vpngw0"         # Information about a specific BGP neighbor
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show protocol all vpngw0"      # Additional information about a specific BGP neighbor
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show route"                 # Learned routes
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show route protocol rs0"    # Learned routes from a specific neighbor
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show route export rs0"      # Advertised routes
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show route protocol vpngw0"    # Learned routes from a specific neighbor
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show route export vpngw0"      # Advertised routes
 ```

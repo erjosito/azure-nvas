@@ -11,12 +11,14 @@ You can use the following commands in a Linux shell to deploy an Ubuntu-based NV
 rg=nva
 location=eastus2
 vnet_name=nva
-vnet_prefix=192.168.0.0/16
+vnet_prefix=10.13.76.0/24
 nva_subnet_name=nva
-nva_subnet_prefix=192.168.0.0/24
+nva_subnet_prefix=10.13.76.0/26
 nva_name=mynva
 nva_pip_name="${nva_name}-pip"
 nva_vm_size=Standard_B1s
+nva_asn=65001
+vpn_psk=your_ipsec_preshared_key
 # Function to get the first IP (default gateway) of a subnet. Example: first_ip 192.168.0.64/27
 function first_ip(){
     subnet=$1
@@ -27,7 +29,7 @@ function first_ip(){
     echo "$NEXT_IP"
 }
 # Create RG and VNet
-echo "Creating RG and VNet..."
+echo "Creating RG and VNet ${vnet_name} in ${location}..."
 az group create -n $rg -l $location -o none
 az network vnet create -n $vnet_name -g $rg --address-prefixes $vnet_prefix --subnet-name $nva_subnet_name --subnet-prefixes $nva_subnet_prefix -l $location -o none
 # NSG for NVA
@@ -62,19 +64,81 @@ az vm create -n $nva_name -g $rg -l $location --image $urn --generate-ssh-keys \
 nva_nic_id=$(az vm show -n $nva_name -g "$rg" --query 'networkProfile.networkInterfaces[0].id' -o tsv)
 az network nic update --ids $nva_nic_id --ip-forwarding -o none
 echo "Getting information about the created VM..."
-nva_pip_ip=$(az network public-ip show -n $nva_pip_name -g $rg --query ipAddress -o tsv) && echo $nva_pip_ip
-nva_private_ip=$(az network nic show --ids $nva_nic_id --query 'ipConfigurations[0].privateIPAddress' -o tsv) && echo $nva_private_ip
-nva_default_gw=$(first_ip "$nva_subnet_prefix") && echo $nva_default_gw
+nva_pip_ip=$(az network public-ip show -n $nva_pip_name -g $rg --query ipAddress -o tsv) && echo "Public IP: ${nva_pip_ip}"
+nva_private_ip=$(az network nic show --ids $nva_nic_id --query 'ipConfigurations[0].privateIPAddress' -o tsv) && echo "Private IP: ${nva_private_ip}"
+nva_default_gw=$(first_ip "$nva_subnet_prefix") && echo "Default gateway: ${nva_default_gw}"
 ```
 
-## IPsec+BGP configuration with XFRM interfaces
+## Create Azure VPN termination device
 
-This guide is following the docs in [here](https://docs.strongswan.org/docs/5.9/features/routeBasedVpn.html#_xfrm_interface_management). XFRM are a new type of interfaces that replace VTI. As before, first you need to extract information from the VPN gateways in Azure. For example, if you are using Virtual WAN:
+You have two options, either a standalone VPN gateway or Virtual WAN.
+
+### Option 1. Create Azure standalone gateway
+
+The first option is creating an Azure VPN gateway in a VNet:
+
+```bash
+# Variables
+vng_vnet_name=vng-vnet
+vng_vnet_prefix=192.168.0.0/23
+vng_subnet_prefix=192.168.0.0/27
+vpngw_name=vpngw
+lng_name=onpremnva
+cx_name=onprem
+# Create gateway
+echo "Creating Virtual Network Gateway..."
+az network vnet create -n $vng_vnet_name --address-prefixes $vng_vnet_prefix --subnet-name GatewaySubnet --subnet-prefixes $vng_subnet_prefix -o none
+az network public-ip create -g $rg -n "${vpngw_name}-pip-a" --sku standard --allocation-method static -l $location -o none
+az network public-ip create -g $rg -n "${vpngw_name}-pip-b" --sku standard --allocation-method static -l $location -o none
+az network vnet-gateway create --name $vpngw_name -g $rg --vnet $vng_vnet_name --public-ip-addresses "${vpngw_name}-pip-a" "${vpngw_name}-pip-b" --sku VpnGw1 --asn 65515 -o none
+# Create LNG and connection
+echo "Creating Local Network Gateway..."
+az network local-gateway create -g $rg -n $lng_name --gateway-ip-address $nva_pip_ip --asn $nva_asn --bgp-peering-address 10.13.77.4 -o none
+az network vpn-connection create -g $rg --shared-key $vpn_psk -n $cx_name --vnet-gateway1 $vpngw_name --local-gateway2 $lng_name -l $location --enable-bgp -o none
+```
+
+And now we get the information we need from the gateway:
+
+```bash
+# Get VPN GW information from standalone VPN Gateway (active/active)
+vpngw_bgp_asn=$(az network vnet-gateway show -n $vpngw_name -g $rg --query 'bgpSettings.asn' -o tsv) && echo $vpnwg_bgp_asn
+vpngw_gw0_pip=$(az network vnet-gateway show -n $vpngw_name -g $rg --query 'bgpSettings.bgpPeeringAddresses[0].tunnelIpAddresses[0]' -o tsv) && echo $vpngw_gw0_pip
+vpngw_gw0_bgp_ip=$(az network vnet-gateway show -n $vpngw_name -g $rg --query 'bgpSettings.bgpPeeringAddresses[0].defaultBgpIpAddresses[0]' -o tsv) && echo $vpngw_gw0_bgp_ip
+vpngw_gw1_pip=$(az network vnet-gateway show -n $vpngw_name -g $rg --query 'bgpSettings.bgpPeeringAddresses[1].tunnelIpAddresses[0]' -o tsv) && echo $vpngw_gw1_pip
+vpngw_gw1_bgp_ip=$(az network vnet-gateway show -n $vpngw_name -g $rg --query 'bgpSettings.bgpPeeringAddresses[1].defaultBgpIpAddresses[0]' -o tsv) && echo $vpngw_gw1_bgp_ip
+echo "Extracted info for vpn gateway: Gateway0 $vpngw_gw0_pip, $vpngw_gw0_bgp_ip. Gateway1 $vpngw_gw1_pip, $vpngw_gw1_bgp_ip. ASN $vpngw_bgp_asn"
+```
+
+### Option 2. Create Azure Virtual WAN
+
+Alternatively you can create a Virtual WAN hub with a VPN gateway:
+
+```bash
+# Variables
+vwan_name=vwan
+hub_name=hub1
+hub_prefix=192.168.0.0/23
+vwan_vpngw_name=hubvpn1
+# Create VWAN and hub
+echo "Creating Virtual WAN..."
+az network vwan create -n $vwan_name -g $rg -l $location --branch-to-branch-traffic true --type Standard -o none
+az network vhub create -n $hub_name -g $rg --vwan $vwan_name -l $location --address-prefix $hub_prefix -o none
+az network vpn-gateway create -n $vwan_vpngw_name -g $rg -l $location --vhub $hub_name --asn 65515 -o none
+# Create site and connection
+echo "Creating VPN site..."
+az network vpn-site create -n $nva_name -g $rg -l $location --virtual-wan $vwan_name --device-vendor Canonical --device-model Ubuntu2404 --link-speed 100 \
+      --ip-address $nva_pip_ip --asn $nva_asn --bgp-peering-address $nva_private_ip --with-link -o none
+site_link_id=$(az network vpn-site link list --site-name $nva_name -g $rg --query '[0].id' -o tsv)
+hub_default_rt_id=$(az network vhub route-table show --vhub-name $hub_name -g $rg -n defaultRouteTable --query id -o tsv)
+az network vpn-gateway connection create -n $nva_name --gateway-name $vwan_vpngw_name -g $rg --remote-vpn-site $nva_name --with-link true --vpn-site-link $site_link_id \
+      --enable-bgp true --protocol-type IKEv2 --shared-key "$vpn_psk" --connection-bandwidth 100 --routing-weight 10 \
+      --associated-route-table $hub_default_rt_id --propagated-route-tables $hub_default_rt_id --labels default --internet-security true -o none
+```
+
+And we need to extract information from the VPN gateways in the virtual hub:
 
 ```bash
 # Get VPN GW information from Virtual WAN
-vwan_vpngw_name=name_of_your_vwan_vpn_gateway
-vpn_psk=your_ipsec_preshared_key
 vpngw_config=$(az network vpn-gateway show -n $vwan_vpngw_name -g $rg)
 vpngw_gw0_pip=$(echo $vpngw_config | jq -r '.bgpSettings.bgpPeeringAddresses[0].tunnelIpAddresses[0]')
 vpngw_gw1_pip=$(echo $vpngw_config | jq -r '.bgpSettings.bgpPeeringAddresses[1].tunnelIpAddresses[0]')
@@ -84,23 +148,11 @@ vpngw_bgp_asn=$(echo $vpngw_config | jq -r '.bgpSettings.asn')  # This is today 
 echo "Extracted info for hub vpn gateway: Gateway0 $vpngw_gw0_pip, $vpngw_gw0_bgp_ip. Gateway1 $vpngw_gw1_pip, $vpngw_gw1_bgp_ip. ASN $vpngw_bgp_asn"
 ```
 
-Alternatively, if your VPN GW is non-VWAN:
+## IPsec+BGP configuration with XFRM interfaces
+
+This guide is following the docs in [here](https://docs.strongswan.org/docs/5.9/features/routeBasedVpn.html#_xfrm_interface_management). XFRM are a new type of interfaces that replace VTI. Make sure you have the right variables from previous steps and that BIRD and StrongSwan are installed:
 
 ```bash
-# Get VPN GW information from standalone VPN Gateway (active/active)
-vpngw_name=name_of_your_vwan_vpn_gateway
-vpn_psk=your_ipsec_preshared_key
-vpngw_bgp_asn=$(az network vnet-gateway show -n $vpngw_name -g $rg --query 'bgpSettings.asn' -o tsv) && echo $vpnwg_bgp_asn
-vpngw_gw0_pip=$(az network vnet-gateway show -n $vpngw_name -g $rg --query 'bgpSettings.bgpPeeringAddresses[0].tunnelIpAddresses[0]' -o tsv) && echo $vpngw_gw0_pip
-vpngw_gw0_bgp_ip=$(az network vnet-gateway show -n $vpngw_name -g $rg --query 'bgpSettings.bgpPeeringAddresses[0].defaultBgpIpAddresses[0]' -o tsv) && echo $vpngw_gw0_bgp_ip
-vpngw_gw1_pip=$(az network vnet-gateway show -n $vpngw_name -g $rg --query 'bgpSettings.bgpPeeringAddresses[1].tunnelIpAddresses[0]' -o tsv) && echo $vpngw_gw1_pip
-vpngw_gw1_bgp_ip=$(az network vnet-gateway show -n $vpngw_name -g $rg --query 'bgpSettings.bgpPeeringAddresses[1].defaultBgpIpAddresses[0]' -o tsv) && echo $vpngw_gw1_bgp_ip
-echo "Extracted info for vpn gateway: Gateway0 $vpngw_gw0_pip, $vpngw_gw0_bgp_ip. Gateway1 $vpngw_gw1_pip, $vpngw_gw1_bgp_ip. ASN $vpngw_bgp_asn"
-```
-Make sure you have the right variables from previous steps and that BIRD and StrongSwan are installed:
-
-```bash
-nva_name=<your vm's name>
 # Function to get the first IP (default gateway) of a subnet. Example: first_ip 192.168.0.64/27
 function first_ip(){
     subnet=$1
@@ -111,14 +163,14 @@ function first_ip(){
     echo "$NEXT_IP"
 }
 # VM variables
-echo "Getting information about the created VM..."
+echo "Getting information about the created VM ${nva_name}..."
 nva_nic_id=$(az vm show -n $nva_name -g "$rg" --query 'networkProfile.networkInterfaces[0].id' -o tsv)
 nva_pip_id=$(az network nic show --ids $nva_nic_id --query 'ipConfigurations[0].publicIPAddress.id' -o tsv)
-nva_pip_ip=$(az network public-ip show --ids $nva_pip_id --query ipAddress -o tsv) && echo $nva_pip_ip
-nva_private_ip=$(az network nic show --ids $nva_nic_id --query 'ipConfigurations[0].privateIPAddress' -o tsv) && echo $nva_private_ip
+nva_pip_ip=$(az network public-ip show --ids $nva_pip_id --query ipAddress -o tsv) && echo "Public IP address: ${nva_pip_ip}"
+nva_private_ip=$(az network nic show --ids $nva_nic_id --query 'ipConfigurations[0].privateIPAddress' -o tsv) && echo "Private IP address: ${nva_private_ip}"
 nva_subnet_id=$(az network nic show --ids $nva_nic_id --query 'ipConfigurations[0].subnet.id' -o tsv)
 nva_subnet_prefix=$(az network vnet subnet show --ids $nva_subnet_id --query addressPrefix -o tsv)
-nva_default_gw=$(first_ip "$nva_subnet_prefix") && echo $nva_default_gw
+nva_default_gw=$(first_ip "$nva_subnet_prefix") && echo "Default gateway: ${nva_default_gw}"
 # This step verifies that you have SSH connectivity, and that you have BIRD and StrongSwan installed
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo apt update && sudo apt install -y bird strongswan strongswan-swanctl"
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo sysctl -w net.ipv4.ip_forward=1"
@@ -129,6 +181,7 @@ ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo sysctl -w 
 First of all, you might want to create some new user with password, in case you need to access the VM over the console (some times I have lost connectivity to the VM):
 
 ```bash
+ssh $nva_pip_ip
 sudo adduser consoleadmin
 sudo usermod -aG sudo consoleadmin
 ```
@@ -164,11 +217,10 @@ ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ip route a
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ip route add throw ${myip}/32 table 220"
 # Check interfaces and routes
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "ip a & ip route"
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "/usr/local/libexec/ipsec/xfrmi --list"
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "ip xfrm policy"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ip xfrm policy"
 ```
 
-The files `/etc/ipsec.secrets` and `/etc/ipsec.conf` are required to configure the IPsec tunnel. Note that compression is disabled in `ipsec.conf`, which is not compatible with VTI-based IPsec tunnels in StrongSwan:
+The new configuration file is `/etc/swanctl/swanctl.conf`. The config is then loaded with `swanctl --load-all`:
 
 ```bash
 # StrongSwan config file
@@ -256,7 +308,6 @@ For the BGP part, StrongSwan on XFRM interfaces works on route table 220, not su
 
 ```bash
 # Configure BGP with Bird (NVA to VPNGW)
-nva_asn=65001
 bird_config_file=/tmp/bird.conf
 cat <<EOF > $bird_config_file
 log syslog all;
@@ -281,11 +332,6 @@ protocol kernel {
           else accept;
       };
 }
-# protocol kernel {               # Secondary routing table
-#         table auxtable;
-#         kernel table 220;
-#         export all;
-# }
 protocol static {
       import all;
       # Test route

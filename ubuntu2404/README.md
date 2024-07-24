@@ -87,7 +87,7 @@ lng_name=onpremnva
 cx_name=onprem
 # Create gateway
 echo "Creating Virtual Network Gateway..."
-az network vnet create -n $vng_vnet_name --address-prefixes $vng_vnet_prefix --subnet-name GatewaySubnet --subnet-prefixes $vng_subnet_prefix -o none
+az network vnet create -g $rg -n $vng_vnet_name --address-prefixes $vng_vnet_prefix --subnet-name GatewaySubnet --subnet-prefixes $vng_subnet_prefix -o none
 az network public-ip create -g $rg -n "${vpngw_name}-pip-a" --sku standard --allocation-method static -l $location -o none
 az network public-ip create -g $rg -n "${vpngw_name}-pip-b" --sku standard --allocation-method static -l $location -o none
 az network vnet-gateway create --name $vpngw_name -g $rg --vnet $vng_vnet_name --public-ip-addresses "${vpngw_name}-pip-a" "${vpngw_name}-pip-b" --sku VpnGw1 --asn 65515 -o none

@@ -507,4 +507,35 @@ jose@mynva:~$ ping 192.168.0.5                                                  
 7 packets transmitted, 0 received, 100% packet loss, time 6125ms                              │14:54:53.511537 ipsec1 Out IP 10.13.76.4 > 192.168.0.5: ICMP echo request, id 6379, seq 7, le                                                                                              │ngth 64
 ```
 
+You can check whether you are getting TCP packets from the gateway on the XFRM interfaces, and whether you are sending them on the correct interfaces. As you can see in the following output, for some reason our Linux NVA is routing the TCP packets it gets from IPsec (the gateways have the IP addresses 192.168.0.4 and .5) back to the Ethernet interface:
+
+```
+jose@mynva:~$ sudo tcpdump -i any -n port 179
+tcpdump: data link type LINUX_SLL2
+tcpdump: verbose output suppressed, use -v[v]... for full protocol decode
+listening on any, link-type LINUX_SLL2 (Linux cooked v2), snapshot length 262144 bytes
+14:58:39.727322 ipsec1 In  IP 192.168.0.5.50997 > 10.13.77.4.179: Flags [SEW], seq 4012300367, win 64240, options [mss 1360,nop,wscale 8,nop,nop,sackOK], length 0
+14:58:39.727336 eth0  Out IP 192.168.0.5.50997 > 10.13.77.4.179: Flags [SEW], seq 4012300367, win 64240, options [mss 1360,nop,wscale 8,nop,nop,sackOK], length 0
+14:58:40.143585 ipsec0 In  IP 192.168.0.4.59552 > 10.13.77.4.179: Flags [SEW], seq 3326914158, win 64240, options [mss 1360,nop,wscale 8,nop,nop,sackOK], length 0
+14:58:40.143603 eth0  Out IP 192.168.0.4.59552 > 10.13.77.4.179: Flags [SEW], seq 3326914158, win 64240, options [mss 1360,nop,wscale 8,nop,nop,sackOK], length 0
+14:58:40.583554 ipsec0 Out IP 10.13.76.4.54069 > 192.168.0.4.179: Flags [S], seq 323564816, win 32120, options [mss 1460,sackOK,TS val 2462243334 ecr 0,nop,wscale 7], length 0
+14:58:41.734581 ipsec1 In  IP 192.168.0.5.50997 > 10.13.77.4.179: Flags [S], seq 4012300367, win 64240, options [mss 1360,nop,wscale 8,nop,nop,sackOK], length 0
+14:58:41.734600 eth0  Out IP 192.168.0.5.50997 > 10.13.77.4.179: Flags [S], seq 4012300367, win 64240, options [mss 1360,nop,wscale 8,nop,nop,sackOK], length 0
+14:58:42.534152 ipsec1 In  IP 192.168.0.5.50999 > 10.13.77.4.179: Flags [SEW], seq 3850790282, win 64240, options [mss 1360,nop,wscale 8,nop,nop,sackOK], length 0
+14:58:42.534177 eth0  Out IP 192.168.0.5.50999 > 10.13.77.4.179: Flags [SEW], seq 3850790282, win 64240, options [mss 1360,nop,wscale 8,nop,nop,sackOK], length 0
+14:58:45.751857 ipsec0 In  IP 192.168.0.4.59553 > 10.13.77.4.179: Flags [SEW], seq 3271099428, win 64240, options [mss 1360,nop,wscale 8,nop,nop,sackOK], length 0
+14:58:45.751877 eth0  Out IP 192.168.0.4.59553 > 10.13.77.4.179: Flags [SEW], seq 3271099428, win 64240, options [mss 1360,nop,wscale 8,nop,nop,sackOK], length 0
+14:58:46.758200 ipsec0 In  IP 192.168.0.4.59553 > 10.13.77.4.179: Flags [SEW], seq 3271099428, win 64240, options [mss 1360,nop,wscale 8,nop,nop,sackOK], length 0
+14:58:46.758217 eth0  Out IP 192.168.0.4.59553 > 10.13.77.4.179: Flags [SEW], seq 3271099428, win 64240, options [mss 1360,nop,wscale 8,nop,nop,sackOK], length 0
+```
+
+Interestingly enough, BGP packets from this NVA (10.13.76.4) are indeed sent over the XRFM interfaces correctly.
+
+You can try to restart ipsec to see if that changes anything...
+
+```
+sudo systemctl restart ipsec
+sudo swanctl load-all
+```
+
 Resolution: WIP

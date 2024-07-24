@@ -415,3 +415,21 @@ ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show route protocol vpngw0"    # Learned routes from a specific neighbor
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show route export vpngw0"      # Advertised routes
 ```
+
+## Troubleshooting
+
+The BIRD adjacencies might stay down due to no route to the BGP peer being available:
+
+```
+jose@mynva:~$ sudo birdc show prot
+BIRD 1.6.8 ready.
+name     proto    table    state  since       info
+device1  Device   master   up     11:56:19
+direct1  Direct   master   down   11:56:19
+kernel1  Kernel   master   up     11:56:19
+static1  Static   master   up     11:56:19
+vpngw0   BGP      master   start  11:56:19    Connect       Socket: No route to host
+vpngw1   BGP      master   start  11:56:19    Connect       Socket: No route to host
+```
+
+Resolution: WIP

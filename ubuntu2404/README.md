@@ -432,4 +432,79 @@ vpngw0   BGP      master   start  11:56:19    Connect       Socket: No route to 
 vpngw1   BGP      master   start  11:56:19    Connect       Socket: No route to host
 ```
 
+You should verify that the IPsec connections are up and running:
+
+```
+jose@mynva:~$ sudo ipsec status
+Routed Connections:
+        s2s1{2}:  ROUTED, TUNNEL, reqid 2
+        s2s1{2}:   0.0.0.0/0 === 0.0.0.0/0
+        s2s0{1}:  ROUTED, TUNNEL, reqid 1
+        s2s0{1}:   0.0.0.0/0 === 0.0.0.0/0
+Security Associations (2 up, 0 connecting):
+        vng0[18]: ESTABLISHED 2 hours ago, 10.13.76.4[52.251.117.90]...20.15.113.219[20.15.113.219]
+        s2s0{11}:  INSTALLED, TUNNEL, reqid 1, ESP in UDP SPIs: cace17a2_i 830e157c_o
+        s2s0{11}:   0.0.0.0/0 === 0.0.0.0/0
+        vng1[17]: ESTABLISHED 2 hours ago, 10.13.76.4[52.251.117.90]...172.172.62.91[172.172.62.91]
+        s2s1{12}:  INSTALLED, TUNNEL, reqid 3, ESP in UDP SPIs: c7db29a2_i ee7fa93e_o
+        s2s1{12}:   0.0.0.0/0 === 0.0.0.0/0
+        s2s1{13}:  INSTALLED, TUNNEL, reqid 2, ESP in UDP SPIs: cc9d0267_i b8dd57de_o
+        s2s1{13}:   0.0.0.0/0 === 0.0.0.0/0
+```
+
+If you inspect the detailed command `ipsec statusall` you can get the packet counters. In this case, you can observe that there are zero bytes of outbound traffic for one of the security associations:
+
+```
+        s2s0{1}:   0.0.0.0/0 === 0.0.0.0/0
+Security Associations (2 up, 0 connecting):
+        vng0[18]: ESTABLISHED 2 hours ago, 10.13.76.4[52.251.117.90]...20.15.113.219[20.15.113.219]
+        vng0[18]: IKEv2 SPIs: 89215c3ec9ce6006_i* 083b45149810a93d_r, rekeying in 66 minutes
+        vng0[18]: IKE proposal: AES_CBC_256/HMAC_SHA1_96/PRF_HMAC_SHA1/MODP_1024
+        s2s0{14}:  INSTALLED, TUNNEL, reqid 1, ESP in UDP SPIs: ca8c0aaf_i 1bd1e14a_o
+        s2s0{14}:  AES_GCM_16_256, 3172 bytes_i (61 pkts, 1s ago), 840 bytes_o (14 pkts, 20s ago), rekeying in 55 minutes
+        s2s0{14}:   0.0.0.0/0 === 0.0.0.0/0
+        vng1[17]: ESTABLISHED 2 hours ago, 10.13.76.4[52.251.117.90]...172.172.62.91[172.172.62.91]
+        vng1[17]: IKEv2 SPIs: 7d330f1835b8b6b6_i 892a3a5459d76c75_r*, rekeying in 57 minutes
+        vng1[17]: IKE proposal: AES_CBC_256/HMAC_SHA1_96/PRF_HMAC_SHA1/MODP_1024
+        s2s1{12}:  INSTALLED, TUNNEL, reqid 3, ESP in UDP SPIs: c7db29a2_i ee7fa93e_o
+        s2s1{12}:  AES_GCM_16_256, 312 bytes_i (6 pkts, 427s ago), 0 bytes_o, rekeying in 48 minutes
+        s2s1{12}:   0.0.0.0/0 === 0.0.0.0/0
+        s2s1{13}:  INSTALLED, TUNNEL, reqid 2, ESP in UDP SPIs: cc9d0267_i b8dd57de_o
+        s2s1{13}:  AES_GCM_16_256, 9464 bytes_i (182 pkts, 0s ago), 2640 bytes_o (44 pkts, 11s ago), rekeying in 47 minutes
+        s2s1{13}:   0.0.0.0/0 === 0.0.0.0/0
+```
+
+You can try to ping the remote gateways, the BGP addresses should answer to ICMP echo requests. In this case, we are getting no answer:
+
+```
+jose@mynva:~$ ping 192.168.0.4
+PING 192.168.0.4 (192.168.0.4) 56(84) bytes of data.
+^C
+--- 192.168.0.4 ping statistics ---
+5 packets transmitted, 0 received, 100% packet loss, time 4124ms
+
+jose@mynva:~$ ping 192.168.0.5
+PING 192.168.0.5 (192.168.0.5) 56(84) bytes of data.
+^C
+--- 192.168.0.5 ping statistics ---
+4 packets transmitted, 0 received, 100% packet loss, time 3093ms
+```
+
+You can capture packets on all interfaces while you are running the continuous pings, to verify that packets are going out the correct interface (ipsec0 and ipsec1):
+```
+jose@mynva:~$ ping 192.168.0.4                                                                │14:54:39.175660 ipsec0 Out IP 10.13.76.4 > 192.168.0.4: ICMP echo request, id 6358, seq 34, lPING 192.168.0.4 (192.168.0.4) 56(84) bytes of data.                                          │ength 64
+^C                                                                                            │14:54:40.199593 ipsec0 Out IP 10.13.76.4 > 192.168.0.4: ICMP echo request, id 6358, seq 35, l--- 192.168.0.4 ping statistics ---                                                           │ength 64
+5 packets transmitted, 0 received, 100% packet loss, time 4124ms                              │14:54:41.223549 ipsec0 Out IP 10.13.76.4 > 192.168.0.4: ICMP echo request, id 6358, seq 36, l                                                                                              │ength 64
+jose@mynva:~$ ping 192.168.0.5                                                                │14:54:42.247628 ipsec0 Out IP 10.13.76.4 > 192.168.0.4: ICMP echo request, id 6358, seq 37, lPING 192.168.0.5 (192.168.0.5) 56(84) bytes of data.                                          │ength 64
+^C                                                                                            │14:54:43.271626 ipsec0 Out IP 10.13.76.4 > 192.168.0.4: ICMP echo request, id 6358, seq 38, l--- 192.168.0.5 ping statistics ---                                                           │ength 64
+4 packets transmitted, 0 received, 100% packet loss, time 3093ms                              │14:54:44.295597 ipsec0 Out IP 10.13.76.4 > 192.168.0.4: ICMP echo request, id 6358, seq 39, l                                                                                              │ength 64
+jose@mynva:~$ nc -vz 192.168.0.4 179                                                          │14:54:47.386894 ipsec1 Out IP 10.13.76.4 > 192.168.0.5: ICMP echo request, id 6379, seq 1, le^C                                                                                            │ngth 64
+jose@mynva:~$ ping 192.168.0.4                                                                │14:54:48.391590 ipsec1 Out IP 10.13.76.4 > 192.168.0.5: ICMP echo request, id 6379, seq 2, lePING 192.168.0.4 (192.168.0.4) 56(84) bytes of data.                                          │ngth 64
+^C                                                                                            │14:54:49.415590 ipsec1 Out IP 10.13.76.4 > 192.168.0.5: ICMP echo request, id 6379, seq 3, le--- 192.168.0.4 ping statistics ---                                                           │ngth 64
+39 packets transmitted, 0 received, 100% packet loss, time 38938ms                            │14:54:50.439595 ipsec1 Out IP 10.13.76.4 > 192.168.0.5: ICMP echo request, id 6379, seq 4, le                                                                                              │ngth 64
+jose@mynva:~$ ping 192.168.0.5                                                                │14:54:51.463596 ipsec1 Out IP 10.13.76.4 > 192.168.0.5: ICMP echo request, id 6379, seq 5, lePING 192.168.0.5 (192.168.0.5) 56(84) bytes of data.                                          │ngth 64
+^C                                                                                            │14:54:52.487591 ipsec1 Out IP 10.13.76.4 > 192.168.0.5: ICMP echo request, id 6379, seq 6, le--- 192.168.0.5 ping statistics ---                                                           │ngth 64
+7 packets transmitted, 0 received, 100% packet loss, time 6125ms                              │14:54:53.511537 ipsec1 Out IP 10.13.76.4 > 192.168.0.5: ICMP echo request, id 6379, seq 7, le                                                                                              │ngth 64
+```
+
 Resolution: WIP

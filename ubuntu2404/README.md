@@ -368,17 +368,11 @@ Interfaces and routes:
 ```bash
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sysctl -w net.ipv4.ip_forward" # Check status of IP forwarding at the OS level
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "ip a"                          # Interface status
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "ip route"                      # IP routes
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "ifconfig vti0"                 # VTI0 counters
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "ip route"                      # IP route
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "ip route show table all"       # IP routes (all tables, including 220)
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "ifconfig ipsec0"               # ipsec0 counters
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "ip -s tunnel show"             # Tunnel information
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "cat /proc/net/xfrm_stat"       # Advanced counters
-```
-
-Resetting VTI0:
-
-```bash
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "ip tunnel del vti0"
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo ip tunnel add vti0 local 192.168.0.2 remote 40.122.240.210 mode vti key 12"
 ```
 
 iptables:
@@ -395,6 +389,8 @@ For IPsec:
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "systemctl status ipsec"        # Check status of StrongSwan daemon
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ipsec status"                     # IPsec status
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ipsec statusall"                  # IPsec status
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo swanctl -l"                       # Swanctl
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo swanctl -L"                       # Swanctl
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo ip xfrm state"            # Transform state
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo ip xfrm policy"           # Transform policy
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo swanctl --initiate --ike vng0 --child s2s0"
@@ -403,15 +399,15 @@ ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo sw
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo swanctl --list-sas"
 ```
 
-For BGP
+For BGP and BIRD:
 
 ```bash
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "systemctl status bird"         # Check status of BIRD daemon
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show status"                # BIRD status
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show protocols"             # BGP neighbors
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "systemctl status bird"            # Check status of BIRD daemon
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show status"                   # BIRD status
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show protocols"                # BGP neighbors
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show protocols vpngw0"         # Information about a specific BGP neighbor
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show protocol all vpngw0"      # Additional information about a specific BGP neighbor
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show route"                 # Learned routes
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show route"                    # Learned routes
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show route protocol vpngw0"    # Learned routes from a specific neighbor
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show route export vpngw0"      # Advertised routes
 ```

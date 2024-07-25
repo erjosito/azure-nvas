@@ -416,9 +416,11 @@ ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show route export vpngw0"      # Advertised routes
 ```
 
-## Troubleshooting
+## Troubleshooting examples
 
-The BIRD adjacencies might stay down due to no route to the BGP peer being available:
+### Example 1: wrong BGP IP configured in the Azure Local Network Gateway
+
+The BIRD adjacencies might stay down, showing a message of `No route to host`:
 
 ```
 jose@mynva:~$ sudo birdc show prot
@@ -452,7 +454,7 @@ Security Associations (2 up, 0 connecting):
         s2s1{13}:   0.0.0.0/0 === 0.0.0.0/0
 ```
 
-If you inspect the detailed command `ipsec statusall` you can get the packet counters. In this case, you can observe that there are zero bytes of outbound traffic for one of the security associations:
+If you inspect the detailed command `ipsec statusall` you can get the packet counters. In this case, you can observe that there are zero bytes of outbound traffic for one of the security associations, which might be part of the problem:
 
 ```
         s2s0{1}:   0.0.0.0/0 === 0.0.0.0/0
@@ -490,24 +492,7 @@ PING 192.168.0.5 (192.168.0.5) 56(84) bytes of data.
 4 packets transmitted, 0 received, 100% packet loss, time 3093ms
 ```
 
-You can capture packets on all interfaces while you are running the continuous pings, to verify that packets are going out the correct interface (ipsec0 and ipsec1):
-```
-jose@mynva:~$ ping 192.168.0.4                                                                │14:54:39.175660 ipsec0 Out IP 10.13.76.4 > 192.168.0.4: ICMP echo request, id 6358, seq 34, lPING 192.168.0.4 (192.168.0.4) 56(84) bytes of data.                                          │ength 64
-^C                                                                                            │14:54:40.199593 ipsec0 Out IP 10.13.76.4 > 192.168.0.4: ICMP echo request, id 6358, seq 35, l--- 192.168.0.4 ping statistics ---                                                           │ength 64
-5 packets transmitted, 0 received, 100% packet loss, time 4124ms                              │14:54:41.223549 ipsec0 Out IP 10.13.76.4 > 192.168.0.4: ICMP echo request, id 6358, seq 36, l                                                                                              │ength 64
-jose@mynva:~$ ping 192.168.0.5                                                                │14:54:42.247628 ipsec0 Out IP 10.13.76.4 > 192.168.0.4: ICMP echo request, id 6358, seq 37, lPING 192.168.0.5 (192.168.0.5) 56(84) bytes of data.                                          │ength 64
-^C                                                                                            │14:54:43.271626 ipsec0 Out IP 10.13.76.4 > 192.168.0.4: ICMP echo request, id 6358, seq 38, l--- 192.168.0.5 ping statistics ---                                                           │ength 64
-4 packets transmitted, 0 received, 100% packet loss, time 3093ms                              │14:54:44.295597 ipsec0 Out IP 10.13.76.4 > 192.168.0.4: ICMP echo request, id 6358, seq 39, l                                                                                              │ength 64
-jose@mynva:~$ nc -vz 192.168.0.4 179                                                          │14:54:47.386894 ipsec1 Out IP 10.13.76.4 > 192.168.0.5: ICMP echo request, id 6379, seq 1, le^C                                                                                            │ngth 64
-jose@mynva:~$ ping 192.168.0.4                                                                │14:54:48.391590 ipsec1 Out IP 10.13.76.4 > 192.168.0.5: ICMP echo request, id 6379, seq 2, lePING 192.168.0.4 (192.168.0.4) 56(84) bytes of data.                                          │ngth 64
-^C                                                                                            │14:54:49.415590 ipsec1 Out IP 10.13.76.4 > 192.168.0.5: ICMP echo request, id 6379, seq 3, le--- 192.168.0.4 ping statistics ---                                                           │ngth 64
-39 packets transmitted, 0 received, 100% packet loss, time 38938ms                            │14:54:50.439595 ipsec1 Out IP 10.13.76.4 > 192.168.0.5: ICMP echo request, id 6379, seq 4, le                                                                                              │ngth 64
-jose@mynva:~$ ping 192.168.0.5                                                                │14:54:51.463596 ipsec1 Out IP 10.13.76.4 > 192.168.0.5: ICMP echo request, id 6379, seq 5, lePING 192.168.0.5 (192.168.0.5) 56(84) bytes of data.                                          │ngth 64
-^C                                                                                            │14:54:52.487591 ipsec1 Out IP 10.13.76.4 > 192.168.0.5: ICMP echo request, id 6379, seq 6, le--- 192.168.0.5 ping statistics ---                                                           │ngth 64
-7 packets transmitted, 0 received, 100% packet loss, time 6125ms                              │14:54:53.511537 ipsec1 Out IP 10.13.76.4 > 192.168.0.5: ICMP echo request, id 6379, seq 7, le                                                                                              │ngth 64
-```
-
-You can check whether you are getting TCP packets from the gateway on the XFRM interfaces, and whether you are sending them on the correct interfaces. As you can see in the following output, for some reason our Linux NVA is routing the TCP packets it gets from IPsec (the gateways have the IP addresses 192.168.0.4 and .5) back to the Ethernet interface:
+You can check whether you are getting TCP packets from the gateway on the XFRM interfaces, and whether you are sending them on the correct interfaces. As you can see in the following output, the VPN gateway is sending packets to the wrong IP address `10.13.77.4`, while our IP NVA has the IP address of `10.13.76.4` (as you can see in the locally originated packets):
 
 ```
 jose@mynva:~$ sudo tcpdump -i any -n port 179
@@ -529,13 +514,4 @@ listening on any, link-type LINUX_SLL2 (Linux cooked v2), snapshot length 262144
 14:58:46.758217 eth0  Out IP 192.168.0.4.59553 > 10.13.77.4.179: Flags [SEW], seq 3271099428, win 64240, options [mss 1360,nop,wscale 8,nop,nop,sackOK], length 0
 ```
 
-Interestingly enough, BGP packets from this NVA (10.13.76.4) are indeed sent over the XRFM interfaces correctly.
-
-You can try to restart ipsec to see if that changes anything...
-
-```
-sudo systemctl restart ipsec
-sudo swanctl load-all
-```
-
-Resolution: WIP
+Resolution: the Local Network Gateway in Azure had the wrong IP address configured.

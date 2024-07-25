@@ -1,6 +1,6 @@
-# Deploying Cisco CSR in Azure with CLI
-
 > **WARNING**: The Cisco CSR is not available anymore in Azure, but only its replacement the Cisco Catalyst 8000v. This new device has a slightly different software, so this guide will not be applicable any more.
+
+# Deploying Cisco CSR in Azure with CLI
 
 This document includes information about how to deploy a basic CSR configuration to Azure, as well as configuration snippets for BGP, IPSec and some useful troubleshooting commands. Note that all commands follow Linux shell syntax, so if you are running in Windows you might want to try them out in WSL (Windows Subsystem for Linux).
 

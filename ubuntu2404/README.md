@@ -101,7 +101,7 @@ az network public-ip create -g $rg -n "${vpngw_name}-pip-b" --sku standard --all
 az network vnet-gateway create --name $vpngw_name -g $rg --vnet $vng_vnet_name --public-ip-addresses "${vpngw_name}-pip-a" "${vpngw_name}-pip-b" --sku VpnGw1 --asn 65515 -o none
 # Create LNG and connection
 echo "Creating Local Network Gateway..."
-az network local-gateway create -g $rg -n $lng_name --gateway-ip-address $nva_pip_ip --asn $nva_asn --bgp-peering-address 10.13.77.4 -o none
+az network local-gateway create -g $rg -n $lng_name --gateway-ip-address $nva_pip_ip --asn $nva_asn --bgp-peering-address $nva_private_ip -o none
 az network vpn-connection create -g $rg --shared-key $vpn_psk -n $cx_name --vnet-gateway1 $vpngw_name --local-gateway2 $lng_name -l $location --enable-bgp -o none
 ```
 

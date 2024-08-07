@@ -2,6 +2,15 @@
 
 This document shows how to deploy an Ubuntu-based NVA to Azure. It include sections on basic deployment, BGP configuration with BIRD, IPsec configuration with StrongSwan and SNAT configuration with iptables. Note that all commands follow Linux shell syntax, so if you are running in Windows you might want to try them out in WSL (Windows Subsystem for Linux).
 
+## Your secrets
+
+In this lab the only secret you need to define is the pre-shared key, you can leave the rest of the values to their defaults if you want:
+
+```
+# Secrets
+vpn_psk=your_ipsec_preshared_key
+```
+
 ## Basic deployment
 
 You can use the following commands in a Linux shell to deploy an Ubuntu-based NVA. The software packages BIRD (for BGP) and StrongSwan (for IPsec) will be installed:
@@ -18,7 +27,6 @@ nva_name=mynva
 nva_pip_name="${nva_name}-pip"
 nva_vm_size=Standard_B1s
 nva_asn=65001
-vpn_psk=your_ipsec_preshared_key
 # Function to get the first IP (default gateway) of a subnet. Example: first_ip 192.168.0.64/27
 function first_ip(){
     subnet=$1

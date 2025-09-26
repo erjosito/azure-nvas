@@ -374,43 +374,43 @@ ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo systemctl 
 Interfaces and routes:
 
 ```bash
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sysctl -w net.ipv4.ip_forward" # Check status of IP forwarding at the OS level
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "ip a"                          # Interface status
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "ip route"                      # IP route
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "ip route show table all"       # IP routes (all tables, including 220)
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "ifconfig ipsec0"               # ipsec0 counters
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "ip -s tunnel show"             # Tunnel information
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "cat /proc/net/xfrm_stat"       # Advanced counters
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sysctl -w net.ipv4.ip_forward" # Check status of IP forwarding at the OS level
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "ip a"                          # Interface status
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "ip route"                      # IP route
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "ip route show table all"       # IP routes (all tables, including 220)
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "ifconfig ipsec0"               # ipsec0 counters
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "ip -s tunnel show"             # Tunnel information
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "cat /proc/net/xfrm_stat"       # Advanced counters
 ```
 
 iptables:
 
 ```bash
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo iptables -L"              # Show iptables rules
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo iptables -t nat -L"       # Show iptables NAT rules
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo iptables -L"              # Show iptables rules
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo iptables -t nat -L"       # Show iptables NAT rules
 ```
 
 For IPsec:
 
 ```bash
 # Diagnostic commands for Ubuntu-based NVA
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "systemctl status ipsec"        # Check status of StrongSwan daemon
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "systemctl status ipsec"        # Check status of StrongSwan daemon
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ipsec status"                     # IPsec status
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ipsec statusall"                  # IPsec status
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo swanctl -l"                       # Swanctl
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo swanctl -L"                       # Swanctl
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo ip xfrm state"            # Transform state
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo ip xfrm policy"           # Transform policy
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo swanctl --initiate --ike vng0 --child s2s0"
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo swanctl --initiate --ike vng1 --child s2s1"
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo swanctl --list-conns"
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "sudo swanctl --list-sas"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ip xfrm state"            # Transform state
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo ip xfrm policy"           # Transform policy
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo swanctl --initiate --ike vng0 --child s2s0"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo swanctl --initiate --ike vng1 --child s2s1"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo swanctl --list-conns"
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo swanctl --list-sas"
 ```
 
 For BGP and BIRD:
 
 ```bash
-ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no -p 1022 $nva_pip_ip "systemctl status bird"            # Check status of BIRD daemon
+ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "systemctl status bird"            # Check status of BIRD daemon
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show status"                   # BIRD status
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show protocols"                # BGP neighbors
 ssh -n -o BatchMode=yes -o StrictHostKeyChecking=no $nva_pip_ip "sudo birdc show protocols vpngw0"         # Information about a specific BGP neighbor

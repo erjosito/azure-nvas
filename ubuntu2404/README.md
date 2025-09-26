@@ -23,8 +23,6 @@ vnet_name=nva
 vnet_prefix=10.13.76.0/24
 nva_subnet_name=nva
 nva_subnet_prefix=10.13.76.0/26
-nva_name=mynva
-nva_pip_name="${nva_name}-pip"
 nva_vm_size=Standard_B1s
 nva_asn=65001
 # Function to get the first IP (default gateway) of a subnet. Example: first_ip 192.168.0.64/27
@@ -65,6 +63,8 @@ offer=ubuntu-24_04-lts
 sku=server
 version=latest
 urn="$publisher:$offer:$sku:$version"
+nva_name=mynva
+nva_pip_name="${nva_name}-pip"
 echo "Creating VM $nva_name..."
 az vm create -n $nva_name -g $rg -l $location --image $urn --generate-ssh-keys \
     --public-ip-address $nva_pip_name --public-ip-sku Standard --vnet-name $vnet_name --size $nva_vm_size --subnet $nva_subnet_name \
